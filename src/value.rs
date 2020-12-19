@@ -3,13 +3,13 @@
 use bson::{Bson, Timestamp};
 use std::time::SystemTime;
 
-struct Value {
+pub struct Value {
 	value: Bson,
 	timestamp: SystemTime,
 }
 
 impl Value {
-	pub fn new(&Bson val) -> Value {
+	pub fn new(val: Bson) -> Value {
 		Value {
 			value: val,
 			timestamp: SystemTime::now()
