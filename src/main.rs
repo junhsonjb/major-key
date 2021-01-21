@@ -1,5 +1,8 @@
 use bson::Bson;
 
+mod command;
+mod location;
+mod node;
 mod value;
 
 fn main() {
