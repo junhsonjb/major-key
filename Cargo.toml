@@ -8,3 +8,8 @@ edition = "2018"
 
 [dependencies]
 bson = "1.1.0"
+bytes = "1.0.1"
+prost = "0.7.0"
+
+[build-dependencies]
+prost-build = { version = "0.7.0" }

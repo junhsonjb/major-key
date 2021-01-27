@@ -53,7 +53,6 @@ impl<'a> Node<'a> {
 
 	}
 
-
 	/* 
 		Store data on this node. Pass in the key and the value.
 		Return and option, either the old value (before the put)
