@@ -16,6 +16,13 @@ pub enum NRequestType {
 	HEARTBEAT,
 }
 
+pub enum RequestType {
+	CREQUEST,
+	CRESPONSE,
+	NREQUEST,
+	NRESPONSE,
+}
+
 pub fn make_crequest(category: CRequestType, key: String, value: Vec<u8>) -> Option<request::CRequest> {
 	let mut req = request::CRequest::default();
 	match category {
@@ -72,46 +79,86 @@ pub fn make_nresponse(category: NRequestType, key: String, value: Vec<u8>, from:
 
 pub fn serialize_crequest(req: &request::CRequest) -> Vec<u8> {
 	let mut buffer = Vec::new();
+	let mut bytes = Vec::new();
 	buffer.reserve(req.encoded_len());
 	req.encode(&mut buffer).unwrap();
-	buffer
+	bytes = b"CR".to_vec();
+	bytes.append(&mut buffer);
+
+	bytes
 }
 
 pub fn serialize_cresponse(res: &request::CResponse) -> Vec<u8> {
 	let mut buffer = Vec::new();
+	let mut bytes = Vec::new();
 	buffer.reserve(res.encoded_len());
 	res.encode(&mut buffer).unwrap();
-	buffer
+	bytes = b"CA".to_vec();
+	bytes.append(&mut buffer);
+	
+	bytes
 }
 
 
 pub fn serialize_nrequest(req: &request::NRequest) -> Vec<u8> {
 	let mut buffer = Vec::new();
+	let mut bytes = Vec::new();
 	buffer.reserve(req.encoded_len());
 	req.encode(&mut buffer).unwrap();
-	buffer
+	bytes = b"NR".to_vec();
+	bytes.append(&mut buffer);
+
+	bytes
 }
 
 pub fn serialize_nresponse(res: &request::NResponse) -> Vec<u8> {
 	let mut buffer = Vec::new();
+	let mut bytes = Vec::new();
 	buffer.reserve(res.encoded_len());
 	res.encode(&mut buffer).unwrap();
-	buffer
+	bytes = b"NA".to_vec();
+	bytes.append(&mut buffer);
+
+	bytes
 }
 
-
 pub fn deserialize_crequest(buffer: &[u8]) -> Result<request::CRequest, prost::DecodeError> {
-	request::CRequest::decode(&mut Cursor::new(buffer))
+	request::CRequest::decode(&mut Cursor::new(buffer[2..].to_vec()))
 }
 
 pub fn deserialize_cresponse(buffer: &[u8]) -> Result<request::CResponse, prost::DecodeError> {
-	request::CResponse::decode(&mut Cursor::new(buffer))
+	request::CResponse::decode(&mut Cursor::new(buffer[2..].to_vec()))
 }
 
 pub fn deserialize_nrequest(buffer: &[u8]) -> Result<request::NRequest, prost::DecodeError> {
-	request::NRequest::decode(&mut Cursor::new(buffer))
+	request::NRequest::decode(&mut Cursor::new(buffer[2..].to_vec()))
 }
 
 pub fn deserialize_nresponse(buffer: &[u8]) -> Result<request::NResponse, prost::DecodeError> {
-	request::NResponse::decode(&mut Cursor::new(buffer))
+	request::NResponse::decode(&mut Cursor::new(buffer[2..].to_vec()))
 }
+
+pub fn classify(buffer: &[u8]) -> Option<RequestType> {
+	match &buffer[0..2] {
+		b"CR" => Some(RequestType::CREQUEST),
+		b"CA" => Some(RequestType::CRESPONSE),
+		b"NR" => Some(RequestType::NREQUEST),
+		b"NA" => Some(RequestType::CRESPONSE),
+		_ => None,
+	}
+}
+
+pub fn which_crequest(buffer: &[u8]) -> Option<CRequestType> {
+	let message = deserialize_crequest(buffer).unwrap();
+	match message.category {
+		0 => Some(CRequestType::PUT),
+		1 => Some(CRequestType::GET),
+		_ => None,
+	}
+}
+
+
+
+
+
+

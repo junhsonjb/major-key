@@ -1,4 +1,5 @@
 use crate::command;
+use crate::librequest;
 use crate::location;
 use crate::value;
 use std::collections::HashMap;
@@ -7,7 +8,9 @@ use std::env;
 use std::fs::File;
 use std::io::{self, prelude::*, BufReader};
 use std::net::{TcpListener, TcpStream, Shutdown};
+use std::thread;
 
+#[derive(Copy, Clone)]
 enum Rank {
     Leader,
     Follower,
@@ -15,15 +18,12 @@ enum Rank {
 }
 
 pub struct Node {
-    name: String,                                      // name (not sure if needed)
-    // location: location::Location,                   // location info for this node
-    replicas: HashMap<String, location::Location>, // map of the replicas (might need change in structure of map)
-    rank: Rank,                         // leader, foller, candidate (primary/secondary)
-    // num_replicas: usize,                // the amount of replicas in total
-    is_replicated: bool,                // boolean telling if this shard is replicated
-    // client: location::Location,     // the location info of the client
-    data: HashMap<i32, value::Value>,   // the actual data
-    op_log: VecDeque<command::Command>, // holds commands (NEED TO CREATE Command STRUCT
+    name: String,                                
+    replicas: HashMap<String, location::Location>,
+    rank: Rank,                         
+    is_replicated: bool,                
+    data: HashMap<i32, value::Value>,   
+    op_log: VecDeque<command::Command>, 
 }
 
 impl Node {
@@ -34,20 +34,12 @@ impl Node {
     pub fn new(
         name: &str,
 		replicas: HashMap<String, location::Location>,
-        // location: location::Location,
-        // rank: Rank,
-        // num_replicas: usize,
-        // is_replicated: bool,
-        // client: location::Location,
     ) -> Node {
         Node {
             name: String::from(name),
-            // location,
-            replicas, // HashMap::new(),
+            replicas, 
             rank: Rank::Follower,
-            // num_replicas: ,
             is_replicated: true,
-            // client,
             data: HashMap::new(),
             op_log: VecDeque::new(),
         }
@@ -94,10 +86,6 @@ impl Node {
         self.replicas.remove(name)
     }
 
-	pub fn set_replicas(&mut self, map: HashMap<String, location::Location>) {
-		self.replicas = map;
-	}
-
     /*
         Return the amount (as a usize) of replicas that are associated
         with this node, i.e. the other replicas in this shard.
@@ -129,6 +117,89 @@ impl Node {
     pub fn add_command(&mut self, cmd: command::Command) {
         self.op_log.push_back(cmd);
     }
+
+}
+
+fn handle_crequest(buffer: &[u8], node: &mut Node) {
+
+	let message = librequest::deserialize_crequest(buffer).unwrap();
+
+	match node.rank {
+
+		Rank::Leader => {
+
+			match librequest::which_crequest(buffer).unwrap() {
+
+				librequest::CRequestType::PUT => {
+					// - store KV pair in data map
+					// - send response
+
+					let key = message.key;
+					let val = message.value;
+
+					// need access to node object
+				},	
+
+				librequest::CRequestType::GET => {
+					// - create resonse with requested data
+					// - send response
+				},	
+
+			}
+
+		},
+
+		Rank::Follower => {
+			// TODO: route message to Leader (`rout_to_leader(...)` or something)
+		},
+
+		Rank::Candidate => {
+			// For now, candidates will do the same as followers, we may change this later
+			// TODO: route message to Leader (`rout_to_leader(...)` or something)
+		},
+
+	}
+	
+}
+
+fn handle_cresponse(buffer: &[u8]) {
+
+
+
+}
+
+fn handle_nrequest(buffer: &[u8]) {
+
+
+
+}
+
+fn handle_nresponse(buffer: &[u8]) {
+
+
+
+}
+
+fn handle_request(mut stream: TcpStream, node: &mut Node) {
+
+	const PLACEHOLDER: usize = 200; // TODO: Figure an upper bound for sizes of
+									// serialized messages. Use that once you
+									// find it out. Hopefully this value will
+									// be enough for now. But using this much
+									// may prove to be inefficient in the 
+									// long run. So be sure to figure that out
+									// when you're able to!
+	let mut buffer = [0 as u8; PLACEHOLDER];
+	let bytes_read = stream.read_exact(&mut buffer);
+	let request_type = librequest::classify(&buffer).unwrap();
+
+	match request_type {
+		librequest::RequestType::CREQUEST => handle_crequest(&buffer.to_vec(), node),
+		librequest::RequestType::CRESPONSE => handle_cresponse(&buffer.to_vec()),
+		librequest::RequestType::NREQUEST => handle_nrequest(&buffer.to_vec()),
+		librequest::RequestType::NRESPONSE => handle_nresponse(&buffer.to_vec()),
+	}
+
 }
 
 fn replica_pair(line: &str) -> (String, location::Location) {
@@ -162,7 +233,15 @@ fn gather_nodes(filename: &str) -> HashMap<String, location::Location> {
 
 }
 
+// dummy function for seeing how `move` works with smart pointers
+fn dummy_fn(data: Box<i32>) {
+	let something = *data;
+}
+
+
 fn main() {
+
+	// NOTE: Maybe send follower/leader status as a cmd line param?
 
 	let args: Vec<String> = env::args().collect();
 
@@ -177,14 +256,22 @@ fn main() {
 	let node_map = gather_nodes(&record_name);
 	let home_location = &node_map[&node_name];
 
-	let node = Node::new(&node_name, node_map);
+	let mut node = Node::new(&node_name, node_map);
+	let node_rank = node.rank;
 
 	let listener = TcpListener::bind(node.replicas[&node_name].get_connection_tuple()).unwrap();
 	for stream in listener.incoming() {
 		match stream {
 
 			Ok(stream) => {
-				
+				thread::spawn(move || {
+					// We're going to have to do one of the following:
+					// - create a Copy-able smart pointer
+					// - create a Copy-able wrapper struct for Node
+					//		- this sounds like the likely option
+
+					// handle_request(stream, &mut node);
+				});
 			}
 
 			Err(err) => {
