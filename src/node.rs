@@ -2,6 +2,7 @@ use crate::command;
 use crate::librequest;
 use crate::location;
 use crate::value;
+// use crate::nodewrapper;
 use std::collections::HashMap;
 use std::collections::VecDeque;
 use std::env;
@@ -9,6 +10,7 @@ use std::fs::File;
 use std::io::{self, prelude::*, BufReader};
 use std::net::{TcpListener, TcpStream, Shutdown};
 use std::thread;
+use bson::{Bson, Document};
 
 #[derive(Copy, Clone)]
 enum Rank {
@@ -22,7 +24,7 @@ pub struct Node {
     replicas: HashMap<String, location::Location>,
     rank: Rank,                         
     is_replicated: bool,                
-    data: HashMap<i32, value::Value>,   
+    data: HashMap<String, value::Value>,   
     op_log: VecDeque<command::Command>, 
 }
 
@@ -47,10 +49,10 @@ impl Node {
 
     /*
         Store data on this node. Pass in the key and the value.
-        Return and option, either the old value (before the put)
+        Return an option, either the old value (before the put)
         or None if there was no old value (new key creation).
     */
-    pub fn put(&mut self, key: i32, val: value::Value) -> Option<value::Value> {
+    pub fn put(&mut self, key: String, val: value::Value) -> Option<value::Value> {
         self.data.insert(key, val)
     }
 
@@ -59,7 +61,7 @@ impl Node {
         Return an option, either a reference to the corresponding value
         or None if there is no corresponding value.
     */
-    pub fn get(&self, key: i32) -> Option<&value::Value> {
+    pub fn get(&self, key: String) -> Option<&value::Value> {
         self.data.get(&key)
     }
 
@@ -137,7 +139,13 @@ fn handle_crequest(buffer: &[u8], node: &mut Node) {
 					let key = message.key;
 					let val = message.value;
 
+					// create Value object from val bytes
+					let doc = Document::from_reader(&mut val.as_slice()).unwrap();
+					let bson_obj = Bson::from(doc);
+					let value = value::Value::new(bson_obj);
+
 					// need access to node object
+					node.put(key, value);
 				},	
 
 				librequest::CRequestType::GET => {
@@ -257,6 +265,9 @@ fn main() {
 	let home_location = &node_map[&node_name];
 
 	let mut node = Node::new(&node_name, node_map);
+	// the below line needs to change, use a NodeWrapper constructor
+	// let ref mut  nodeptr = node; // using `ref` makes this same as nodewrapper = &node
+	// let mut nodewrap = nodewrapper::NodeWrapper::new(nodeptr);
 	let node_rank = node.rank;
 
 	let listener = TcpListener::bind(node.replicas[&node_name].get_connection_tuple()).unwrap();
@@ -264,14 +275,7 @@ fn main() {
 		match stream {
 
 			Ok(stream) => {
-				thread::spawn(move || {
-					// We're going to have to do one of the following:
-					// - create a Copy-able smart pointer
-					// - create a Copy-able wrapper struct for Node
-					//		- this sounds like the likely option
-
-					// handle_request(stream, &mut node);
-				});
+				handle_request(stream, &mut node);
 			}
 
 			Err(err) => {
