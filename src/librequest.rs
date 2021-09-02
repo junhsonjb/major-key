@@ -8,12 +8,14 @@ pub mod request {
 pub enum CRequestType {
 	PUT,
 	GET,
+	RR, // used to denote that a message needs to be Re-Routed
 }
 
 pub enum NRequestType {
 	PUT,
 	GET,
 	HEARTBEAT,
+	RR, // used to denote that a message needs to be Re-Routed
 }
 
 pub enum RequestType {
@@ -28,6 +30,7 @@ pub fn make_crequest(category: CRequestType, key: String, value: Vec<u8>) -> Opt
 	match category {
 		CRequestType::PUT => req.set_category(request::CRequestType::Cput),
 		CRequestType::GET => req.set_category(request::CRequestType::Cget),
+		CRequestType::RR => { /* I don't think this should ever happen */ },
 	};
 	req.key = key;
 	req.value = value;
@@ -40,6 +43,7 @@ pub fn make_cresponse(category: CRequestType, key: String, value: Vec<u8>, statu
 	match category {
 		CRequestType::PUT => res.set_category(request::CRequestType::Cput),
 		CRequestType::GET => res.set_category(request::CRequestType::Cget),
+		CRequestType::RR => { /* I don't think this should ever happen */ },
 	};
 	res.key = key;
 	res.value = value;
@@ -54,6 +58,7 @@ pub fn make_nrequest(category: NRequestType, key: String, value: Vec<u8>, from: 
 		NRequestType::PUT => req.set_category(request::NRequestType::Nput),
 		NRequestType::GET => req.set_category(request::NRequestType::Nget),
 		NRequestType::HEARTBEAT => req.set_category(request::NRequestType::Heartbeat),
+		NRequestType::RR => { /* I don't think this should ever happen */ },
 	};
 	req.key = key;
 	req.value = value;
@@ -68,6 +73,7 @@ pub fn make_nresponse(category: NRequestType, key: String, value: Vec<u8>, from:
 		NRequestType::PUT => res.set_category(request::NRequestType::Nput),
 		NRequestType::GET => res.set_category(request::NRequestType::Nget),
 		NRequestType::HEARTBEAT => res.set_category(request::NRequestType::Heartbeat),
+		NRequestType::RR => { /* I don't think this should ever happen */ },
 	};
 	res.key = key;
 	res.value = value;
@@ -153,6 +159,15 @@ pub fn which_crequest(buffer: &[u8]) -> Option<CRequestType> {
 	match message.category {
 		0 => Some(CRequestType::PUT),
 		1 => Some(CRequestType::GET),
+		_ => None,
+	}
+}
+
+pub fn which_nrequest(buffer: &[u8]) -> Option<NRequestType> {
+	let message = deserialize_nrequest(buffer).unwrap();
+	match message.category {
+		0 => Some(NRequestType::PUT),
+		1 => Some(NRequestType::GET),
 		_ => None,
 	}
 }

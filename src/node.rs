@@ -12,6 +12,17 @@ use std::net::{TcpListener, TcpStream, Shutdown};
 use std::thread;
 use bson::{Bson, Document};
 
+/* This is here so that we can RETURN enttites from this class ONLY.
+   Please do not create entities from this class, there is a library
+   made specifically for that purpose. Use it!
+*/
+/* I think this is causing issues bc it's treated as a separate entity from 
+   the inclusion written up in librequest.rs
+pub mod request {
+	include!(concat!(env!("OUT_DIR"), "/major_key.request.rs"));
+}
+*/
+
 #[derive(Copy, Clone)]
 enum Rank {
     Leader,
@@ -29,7 +40,7 @@ pub struct Node {
 }
 
 impl Node {
-    /*
+    /**
         Create a new object, functions as a constructor. Pass in
         the specified identifying information.
     */
@@ -47,25 +58,25 @@ impl Node {
         }
     }
 
-    /*
+    /**
         Store data on this node. Pass in the key and the value.
         Return an option, either the old value (before the put)
         or None if there was no old value (new key creation).
     */
-    pub fn put(&mut self, key: String, val: value::Value) -> Option<value::Value> {
-        self.data.insert(key, val)
+    pub fn put(&mut self, key: &str, val: value::Value) -> Option<value::Value> {
+        self.data.insert(String::from(key), val)
     }
 
-    /*
+    /**
         Retrieve data stored in this node. Pass in the associated key.
         Return an option, either a reference to the corresponding value
         or None if there is no corresponding value.
     */
-    pub fn get(&self, key: String) -> Option<&value::Value> {
-        self.data.get(&key)
+    pub fn get(&self, key: &str) -> Option<&value::Value> {
+        self.data.get(key)
     }
 
-    /*
+    /**
         Add a replica to this node's map of replicas. Pass in name and
         Location object. Return an option, either the old value if the
         replica is being updated (not likely) or None if the key is new.
@@ -78,7 +89,7 @@ impl Node {
         self.replicas.insert(String::from(name), location)
     }
 
-    /*
+    /**
         Remove a replica. Pass in the key (name) of the replica to remove
         from the replicas map. Return an option, either the value that has
         just been removed or None if there was no replica associated with
@@ -88,7 +99,7 @@ impl Node {
         self.replicas.remove(name)
     }
 
-    /*
+    /**
         Return the amount (as a usize) of replicas that are associated
         with this node, i.e. the other replicas in this shard.
     */
@@ -96,7 +107,7 @@ impl Node {
 		self.replicas.len()
     }
 
-    /*
+    /**
         Return a bool based on whether this node is replicated (true) or
         if it is a single, unreplicated node.
     */
@@ -104,7 +115,7 @@ impl Node {
         self.is_replicated
     }
 
-    /*
+    /**
         Set the is_replicated boolean to true or false. Pass in a boolean
         value to set.
     */
@@ -112,7 +123,7 @@ impl Node {
         self.is_replicated = replicated;
     }
 
-    /*
+    /**
         Add a command to the op log. Pass in a command object to
         append to the queue.
     */
@@ -122,7 +133,20 @@ impl Node {
 
 }
 
-fn handle_crequest(buffer: &[u8], node: &mut Node) {
+fn send_to_leader(buffer: &[u8]) {
+	//
+}
+
+fn send_cresponse(mut stream: TcpStream, response: Option<librequest::request::CResponse>) {
+	// send cresponse
+	stream.write(response.unwrap().value.as_slice());
+}
+
+fn send_nresponse(mut stream: TcpStream, response: Option<librequest::request::NResponse>) {
+	stream.write(response.unwrap().value.as_slice());
+}
+
+fn handle_crequest(mut stream: TcpStream, buffer: &[u8], node: &mut Node) {
 
 	let message = librequest::deserialize_crequest(buffer).unwrap();
 
@@ -137,60 +161,189 @@ fn handle_crequest(buffer: &[u8], node: &mut Node) {
 					// - send response
 
 					let key = message.key;
-					let val = message.value;
+					let bytes = message.value;
 
 					// create Value object from val bytes
-					let doc = Document::from_reader(&mut val.as_slice()).unwrap();
+					let doc = Document::from_reader(&mut bytes.as_slice()).unwrap();
 					let bson_obj = Bson::from(doc);
 					let value = value::Value::new(bson_obj);
 
 					// need access to node object
-					node.put(key, value);
+					node.put(&key, value);
+
+					// TODO: make and return request
+					let response = librequest::make_cresponse(librequest::CRequestType::PUT, key, bytes, true);
+					send_cresponse(stream, response);
 				},	
 
 				librequest::CRequestType::GET => {
+					// - retrieve requested data (an option, to cover the event of a failure)
+					// - if the option is successful, pass true, else, pass false
 					// - create resonse with requested data
 					// - send response
+
+					let key = message.key;
+
+					let data = node.get(&key);
+					let sts = match data {
+						Some(x) => true,
+						None	=> false,
+					};
+
+					// Need to send back `data` as a slice of bytes ([u8])
+					let mut bytes: Vec<u8> = Vec::new();
+
+					match sts {
+						true => {
+							bytes = data.unwrap().as_bytes();
+						},
+						false => {
+							bytes = message.value;
+						},
+					}
+
+					let response = librequest::make_cresponse(librequest::CRequestType::GET, key, bytes, sts);
+					send_cresponse(stream, response);
 				},	
+
+				librequest::CRequestType::RR => {
+					// I gotta look around and figure out what I need to do here
+				}
 
 			}
 
 		},
 
-		Rank::Follower => {
-			// TODO: route message to Leader (`rout_to_leader(...)` or something)
-		},
-
-		Rank::Candidate => {
+		Rank::Follower | Rank::Candidate => {
 			// For now, candidates will do the same as followers, we may change this later
 			// TODO: route message to Leader (`rout_to_leader(...)` or something)
+			// Make a crequest that notifies the caller to re-route request to a Leader
+			let key = message.key;
+			let bytes = message.value;
+
+			let response = librequest::make_cresponse(librequest::CRequestType::RR, key, bytes, true);
+			send_cresponse(stream, response); // I THINK: this should be routed to leader (TODO)
 		},
 
 	}
 	
 }
 
+// NOTE: `cresponse` should never be recieved by nodes, they're only for clients
 fn handle_cresponse(buffer: &[u8]) {
+	// TODO: figure out what you need to do here
+	// NOTE: probably nothing, since cresponse is never recieved by nodes. This
+	// function is kinda just a placeholder for the match statement that calls it.
+}
 
+fn handle_nrequest(mut stream: TcpStream, buffer: &[u8], node: &mut Node) {
 
+	// NOTE: Remember that an NRequest is a request from another node
+	// Upon recieving an NRequest, n:
+	// - if n is from a leader, process as normal (update/retrieve and send nresponse)
+	// - if n is from a follower:
+	//   - if n is a PUT/GET request, ignore it (right? follwers don't get those requests)
+	//   - if n is a HEARTBEAT, return true if okay, false if bad (use dummy key/value values)
+	//	 - (coming soon) if n is a candidate's vote request, handle as neccessary 
+	//     (need to design a scheme for this, like I said, coming soon!)
+
+	let message = librequest::deserialize_nrequest(buffer).unwrap();
+
+	match node.rank {
+
+		Rank::Leader => {
+
+			match librequest::which_nrequest(buffer).unwrap() {
+
+				librequest::NRequestType::PUT => {
+					// - store KV pair in data map
+					// - send response
+
+					let key = message.key;
+					let bytes = message.value;
+
+					// create Value object from val bytes
+					let doc = Document::from_reader(&mut bytes.as_slice()).unwrap();
+					let bson_obj = Bson::from(doc);
+					let value = value::Value::new(bson_obj);
+
+					// need access to node object
+					node.put(&key, value);
+
+					// TODO: make and return request
+					let from = String::from(node.name.clone());
+					let response = librequest::make_nresponse(librequest::NRequestType::PUT, key, bytes, from, true);
+					send_nresponse(stream, response);
+				},	
+
+				librequest::NRequestType::GET => {
+					// - retrieve requested data (an option, to cover the event of a failure)
+					// - if the option is successful, pass true, else, pass false
+					// - create resonse with requested data
+					// - send response
+
+					let key = message.key;
+
+					let data = node.get(&key);
+					let sts = match data {
+						Some(x) => true,
+						None	=> false,
+					};
+
+					// Need to send back `data` as a slice of bytes ([u8])
+					let mut bytes: Vec<u8> = Vec::new();
+
+					match sts {
+						true => {
+							bytes = data.unwrap().as_bytes();
+						},
+						false => {
+							bytes = message.value;
+						},
+					}
+
+					let from = String::from(node.name.clone());
+					let response = librequest::make_nresponse(librequest::NRequestType::GET, key, bytes, from, sts);
+					send_nresponse(stream, response);
+				},	
+
+				librequest::NRequestType::HEARTBEAT => {
+					// TODO: figure out what to do here
+					// probably send a heartbeat right back, right?
+				},
+
+				librequest::NRequestType::RR => {
+					// TODO: figure out what to do here
+				},
+
+			}
+
+		},
+
+		Rank::Follower | Rank::Candidate => {
+			// For now, candidates will do the same as followers, we may change this later
+			// TODO: route message to Leader (`rout_to_leader(...)` or something)
+			// Make a crequest that notifies the caller to re-route request to a Leader
+			let key = message.key;
+			let bytes = message.value;
+
+			let from = String::from(node.name.clone());
+			let response = librequest::make_nresponse(librequest::NRequestType::RR, key, bytes, from, true);
+			send_nresponse(stream, response);
+		},
+
+	}
 
 }
 
-fn handle_nrequest(buffer: &[u8]) {
-
-
-
-}
-
-fn handle_nresponse(buffer: &[u8]) {
-
-
-
+fn handle_nresponse(stream: TcpStream, buffer: &[u8]) {
+	// TODO: figure out what to do here
+	// these are just acks, so don't we just read them and do nothing?
 }
 
 fn handle_request(mut stream: TcpStream, node: &mut Node) {
 
-	const PLACEHOLDER: usize = 200; // TODO: Figure an upper bound for sizes of
+	const PLACEHOLDER: usize = 500; // TODO: Figure an upper bound for sizes of
 									// serialized messages. Use that once you
 									// find it out. Hopefully this value will
 									// be enough for now. But using this much
@@ -201,12 +354,15 @@ fn handle_request(mut stream: TcpStream, node: &mut Node) {
 	let bytes_read = stream.read_exact(&mut buffer);
 	let request_type = librequest::classify(&buffer).unwrap();
 
+	// NOTE: remember that if the return type is a message with type
+	// `librequest::CRequestType::RR`, then the message needs to be re-routed
+	// to a leader instead of a follower or candidate
 	match request_type {
-		librequest::RequestType::CREQUEST => handle_crequest(&buffer.to_vec(), node),
-		librequest::RequestType::CRESPONSE => handle_cresponse(&buffer.to_vec()),
-		librequest::RequestType::NREQUEST => handle_nrequest(&buffer.to_vec()),
-		librequest::RequestType::NRESPONSE => handle_nresponse(&buffer.to_vec()),
-	}
+		librequest::RequestType::CREQUEST => handle_crequest(stream, &buffer.to_vec(), node),
+		librequest::RequestType::CRESPONSE => handle_cresponse(&buffer.to_vec()), // nodes don't recieve these
+		librequest::RequestType::NREQUEST => handle_nrequest(stream, &buffer.to_vec(), node),
+		librequest::RequestType::NRESPONSE => handle_nresponse(stream, &buffer.to_vec()),
+	};
 
 }
 
