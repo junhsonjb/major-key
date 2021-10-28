@@ -234,6 +234,7 @@ fn handle_cresponse(buffer: &[u8]) {
 	// TODO: figure out what you need to do here
 	// NOTE: probably nothing, since cresponse is never recieved by nodes. This
 	// function is kinda just a placeholder for the match statement that calls it.
+	eprintln!("CRequests should never be sent to Nodes, only Clients!");
 }
 
 fn handle_nrequest(mut stream: TcpStream, buffer: &[u8], node: &mut Node) {
