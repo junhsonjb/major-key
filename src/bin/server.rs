@@ -1,6 +1,13 @@
-use major_key;
+use major_key::node::Node;
+use major_key::node::Rank;
+use major_key::librequest;
+use major_key::location;
+use major_key::value;
 // use crate::librequest;
 
+use std::io::{self, prelude::*, BufReader};
+use std::collections::HashMap;
+use std::fs::File;
 use std::net::{TcpListener, TcpStream, Shutdown};
 use std::env;
 use bson::{Bson, Document};
@@ -284,7 +291,7 @@ fn main() {
 
 	let args: Vec<String> = env::args().collect();
 
-	if (args.len() != 2) {
+	if (args.len() != 3) {
 		eprintln!("Please try again with following command:");
 		eprintln!("\t./{} <node-name> <node-record-file>", args[0]);
 	}
@@ -306,6 +313,7 @@ fn main() {
 		match stream {
 
 			Ok(stream) => {
+				println!("about to handle a request!");
 				handle_request(stream, &mut node);
 			}
 
