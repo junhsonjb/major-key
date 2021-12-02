@@ -59,13 +59,14 @@ fn main() {
 	let node_map = gather_nodes(&record_name);
 	
 	// choose primary (top node in record)
-	let primary = node_map.get("repica1").unwrap(); // hardcoded (at least for now)
+	let primary = node_map.get("replica1").unwrap(); // hardcoded (at least for now)
 
 	match TcpStream::connect(primary.get_connection_tuple()) {
 
 		Ok(mut stream) => {
-			println!("Successfully connected to primary!");
+			println!("client: Successfully connected to primary!");
 
+			println!("client: Doing setup for sending request: hello world");
 			// create request to send over network
 			let cat = librequest::CRequestType::PUT;
 			let stringdata = String::from("hello world");
@@ -76,11 +77,13 @@ fn main() {
 			let request = librequest::serialize_crequest(&request_obj);
 
 			// send over stream
-			stream.write(&request);
+			println!("client: sending request");
+			stream.write(&request).expect("issue with writing to stream");
 
 			// wait for response
 			const PLACEHOLDER: usize = 500;
 			let mut buffer = [0 as u8; PLACEHOLDER];
+			println!("client: about to listen for response");
 			match stream.read_exact(&mut buffer) {
 
 				Ok(_) => {
@@ -89,7 +92,7 @@ fn main() {
 					let key = response.key;
 					let val = response.value;
 					let sts = response.status;
-					println!("content: k: {}, v: {}, s: {}", key, std::str::from_utf8(&val).unwrap(), sts);
+					println!("client: content: k: {}, v: {}, s: {}", key, std::str::from_utf8(&val).unwrap(), sts);
 				},
 				Err(e) => {
 					eprintln!("Failed to recieve data: {}", e);

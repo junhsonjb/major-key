@@ -20,16 +20,18 @@ fn send_to_leader(buffer: &[u8]) {
 
 fn send_cresponse(mut stream: TcpStream, response: Option<librequest::request::CResponse>) {
 	// send cresponse
-	stream.write(response.unwrap().value.as_slice());
+	stream.write(response.unwrap().value.as_slice()).expect("issue with writing in send_cresponse");
 }
 
 fn send_nresponse(mut stream: TcpStream, response: Option<librequest::request::NResponse>) {
-	stream.write(response.unwrap().value.as_slice());
+	stream.write(response.unwrap().value.as_slice()).expect("issue with writing in send_nresponse");
 }
 
 fn handle_crequest(mut stream: TcpStream, buffer: &[u8], node: &mut Node) {
 
+	println!("server: deserializing request");
 	let message = librequest::deserialize_crequest(buffer).unwrap();
+	println!("server: not here right?");
 
 	match node.rank {
 
@@ -40,6 +42,8 @@ fn handle_crequest(mut stream: TcpStream, buffer: &[u8], node: &mut Node) {
 				librequest::CRequestType::PUT => {
 					// - store KV pair in data map
 					// - send response
+
+					println!("server: PUT request");
 
 					let key = message.key;
 					let bytes = message.value;
@@ -53,8 +57,11 @@ fn handle_crequest(mut stream: TcpStream, buffer: &[u8], node: &mut Node) {
 					node.put(&key, value);
 
 					// TODO: make and return request
+					println!("server: making response");
 					let response = librequest::make_cresponse(librequest::CRequestType::PUT, key, bytes, true);
+					println!("server: sending response");
 					send_cresponse(stream, response);
+					println!("server: response sent");
 				},	
 
 				librequest::CRequestType::GET => {
@@ -232,13 +239,17 @@ fn handle_request(mut stream: TcpStream, node: &mut Node) {
 									// may prove to be inefficient in the 
 									// long run. So be sure to figure that out
 									// when you're able to!
-	let mut buffer = [0 as u8; PLACEHOLDER];
-	let bytes_read = stream.read_exact(&mut buffer);
+	let mut pbuffer = [0 as u8; PLACEHOLDER]; // pbuffer is placeholder buffer
+	println!("server: did we make it here?");
+	let bytes_read = stream.read(&mut pbuffer).expect("issue with reading stream"); // used to be read_exact(...)
+	let buffer = &pbuffer[0..bytes_read];
+	println!("server: did the beat drop?");
 	let request_type = librequest::classify(&buffer).unwrap();
 
 	// NOTE: remember that if the return type is a message with type
 	// `librequest::CRequestType::RR`, then the message needs to be re-routed
 	// to a leader instead of a follower or candidate
+	println!("server: handle request based on type");
 	match request_type {
 		librequest::RequestType::CREQUEST => handle_crequest(stream, &buffer.to_vec(), node),
 		librequest::RequestType::CRESPONSE => handle_cresponse(&buffer.to_vec()), // nodes don't recieve these
@@ -306,6 +317,7 @@ fn main() {
 	// the below line needs to change, use a NodeWrapper constructor
 	// let ref mut  nodeptr = node; // using `ref` makes this same as nodewrapper = &node
 	// let mut nodewrap = nodewrapper::NodeWrapper::new(nodeptr);
+	node.rank = Rank::Leader;
 	let node_rank = node.rank;
 
 	let listener = TcpListener::bind(node.replicas[&node_name].get_connection_tuple()).unwrap();
@@ -313,7 +325,7 @@ fn main() {
 		match stream {
 
 			Ok(stream) => {
-				println!("about to handle a request!");
+				println!("server: about to handle a request!");
 				handle_request(stream, &mut node);
 			}
 
