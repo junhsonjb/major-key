@@ -9,7 +9,7 @@ use std::collections::HashMap;
 use std::fs::File;
 use std::net::{TcpListener, TcpStream, Shutdown};
 use std::env;
-use bson::{Bson, Document};
+use bson::{doc, Bson, Document};
 use std::thread;
 
 // Coped from bin/server.rs -- TODO: find a way to efficiently reuse this code
@@ -70,10 +70,13 @@ fn main() {
 			// create request to send over network
 			let cat = librequest::CRequestType::PUT;
 			let stringdata = String::from("hello world");
-			// let data = Bson::String(b"hello world".to_string());
 			let data = Bson::String(stringdata);
-			let val = value::Value::new(data);
-			let request_obj = librequest::make_crequest(cat, "test".to_string(), val.as_bytes()).unwrap();
+			// let val = value::Value::new(data);
+			let doc = doc!{"x": data};
+			let mut byte_stream: Vec<u8> = Vec::new();
+			doc.to_writer(&mut byte_stream).unwrap();
+
+			let request_obj = librequest::make_crequest(cat, "test".to_string(), byte_stream).unwrap();
 			let request = librequest::serialize_crequest(&request_obj);
 
 			// send over stream
@@ -82,23 +85,36 @@ fn main() {
 
 			// wait for response
 			const PLACEHOLDER: usize = 500;
-			let mut buffer = [0 as u8; PLACEHOLDER];
+			// let mut pbuffer = [0 as u8; PLACEHOLDER];
+			let mut pbuffer = Vec::new();
 			println!("client: about to listen for response");
-			match stream.read_exact(&mut buffer) {
+			// TODO: try read_to_end(...)
+			match stream.read_to_end(&mut pbuffer) {
 
-				Ok(_) => {
+				Ok(bytes_read) => {
+					println!("client: unpacking response");
 					// unpack response
+
+					let buffer = &pbuffer[0..bytes_read];
+
+					// println!("client: {:?}", buffer);
+					// println!("client: {:?}", pbuffer);
 					let response = librequest::deserialize_cresponse(&buffer).unwrap();
 					let key = response.key;
-					let val = response.value;
+					let bytes = response.value;
 					let sts = response.status;
-					println!("client: content: k: {}, v: {}, s: {}", key, std::str::from_utf8(&val).unwrap(), sts);
+
+					let doc = Document::from_reader(&mut bytes.as_slice()).expect("in client, creating document");
+					let bson_obj = doc.get("x").unwrap();
+
+					// println!("client: content: k: {}, v: {}, s: {}", key, std::str::from_utf8(&val).unwrap(), sts);
+					println!("client: content: k: {}, v: {}, s: {}", key, bson_obj, sts);
 				},
 				Err(e) => {
-					eprintln!("Failed to recieve data: {}", e);
+					eprintln!("client: Failed to recieve data: {}", e);
 				},
 
-			}
+			} //
 		},
 		Err(e) => {
 			eprintln!("Failed to connect: {}", e);

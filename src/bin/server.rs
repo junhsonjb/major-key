@@ -21,6 +21,7 @@ fn send_to_leader(buffer: &[u8]) {
 fn send_cresponse(mut stream: TcpStream, response: Option<librequest::request::CResponse>) {
 	// send cresponse
 	stream.write(response.unwrap().value.as_slice()).expect("issue with writing in send_cresponse");
+	println!("server: make it happen, cap'n");
 }
 
 fn send_nresponse(mut stream: TcpStream, response: Option<librequest::request::NResponse>) {
@@ -48,10 +49,15 @@ fn handle_crequest(mut stream: TcpStream, buffer: &[u8], node: &mut Node) {
 					let key = message.key;
 					let bytes = message.value;
 
+					println!("server: got key and bytes vector");
+					// println!("server: {}", key);
+					// println!("server: {:#?}", bytes);
+
 					// create Value object from val bytes
-					let doc = Document::from_reader(&mut bytes.as_slice()).unwrap();
-					let bson_obj = Bson::from(doc);
-					let value = value::Value::new(bson_obj);
+					let doc = Document::from_reader(&mut bytes.as_slice()).expect("issue with creating doc");
+					let bson_obj = doc.get("x").unwrap();
+					// let bson_obj = Bson::from(doc);
+					let value = value::Value::new(bson_obj.clone());
 
 					// need access to node object
 					node.put(&key, value);
@@ -256,6 +262,8 @@ fn handle_request(mut stream: TcpStream, node: &mut Node) {
 		librequest::RequestType::NREQUEST => handle_nrequest(stream, &buffer.to_vec(), node),
 		librequest::RequestType::NRESPONSE => handle_nresponse(stream, &buffer.to_vec()),
 	};
+
+	println!("server: is we here?");
 
 }
 
