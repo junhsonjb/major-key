@@ -20,7 +20,9 @@ fn send_to_leader(buffer: &[u8]) {
 
 fn send_cresponse(mut stream: TcpStream, response: Option<librequest::request::CResponse>) {
 	// send cresponse
-	stream.write(response.unwrap().value.as_slice()).expect("issue with writing in send_cresponse");
+	let resp = response.unwrap();
+	let s_response = librequest::serialize_cresponse(&resp);
+	stream.write(&s_response).expect("issue with writing in send_cresponse");
 	println!("server: make it happen, cap'n");
 }
 
@@ -63,8 +65,13 @@ fn handle_crequest(mut stream: TcpStream, buffer: &[u8], node: &mut Node) {
 					node.put(&key, value);
 
 					// TODO: make and return request
+					println!("server: RESPONSE LEN - {} bytes", bytes.len());
+					println!("server: RESPONSE - {:?}", bytes);
+					println!("server: is this getting printed???");
+
 					println!("server: making response");
 					let response = librequest::make_cresponse(librequest::CRequestType::PUT, key, bytes, true);
+
 					println!("server: sending response");
 					send_cresponse(stream, response);
 					println!("server: response sent");
@@ -250,6 +257,7 @@ fn handle_request(mut stream: TcpStream, node: &mut Node) {
 	let bytes_read = stream.read(&mut pbuffer).expect("issue with reading stream"); // used to be read_exact(...)
 	let buffer = &pbuffer[0..bytes_read];
 	println!("server: did the beat drop?");
+	println!("server: MSG LEN - {} bytes", buffer.len());
 	let request_type = librequest::classify(&buffer).unwrap();
 
 	// NOTE: remember that if the return type is a message with type

@@ -79,6 +79,8 @@ fn main() {
 			let request_obj = librequest::make_crequest(cat, "test".to_string(), byte_stream).unwrap();
 			let request = librequest::serialize_crequest(&request_obj);
 
+			println!("client: MSG LEN - {} bytes", request.len());
+
 			// send over stream
 			println!("client: sending request");
 			stream.write(&request).expect("issue with writing to stream");
@@ -99,6 +101,8 @@ fn main() {
 
 					// println!("client: {:?}", buffer);
 					// println!("client: {:?}", pbuffer);
+					println!("client: RESPONSE LEN - {}", buffer.len());
+					println!("client: RESPONSE - {:?}", buffer);
 					let response = librequest::deserialize_cresponse(&buffer).unwrap();
 					let key = response.key;
 					let bytes = response.value;
