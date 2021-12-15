@@ -13,11 +13,16 @@ use std::env;
 use bson::{Bson, Document};
 use std::thread;
 
+/// Server for the Key-Value store!
+/// Uses the Node struct to hold data and handles messages
+/// (requests and responses) sent over a TcpStream
+
 
 fn send_to_leader(buffer: &[u8]) {
 	//
 }
 
+/// Use the provided TcpStream to send a response back to the client
 fn send_cresponse(mut stream: TcpStream, response: Option<librequest::request::CResponse>) {
 	// send cresponse
 	let resp = response.unwrap();
@@ -26,10 +31,16 @@ fn send_cresponse(mut stream: TcpStream, response: Option<librequest::request::C
 	println!("server: make it happen, cap'n");
 }
 
+/// Use the provided TcpStream to send a response back to the requesting node
 fn send_nresponse(mut stream: TcpStream, response: Option<librequest::request::NResponse>) {
-	stream.write(response.unwrap().value.as_slice()).expect("issue with writing in send_nresponse");
+	let resp = response.unwrap();
+	let s_response = librequest::serialize_nresponse(&resp);
+	stream.write(&s_response).expect("issue with writing in send_nresponse");
 }
 
+/// Given a TcpStream and a buffer containing the recieved byte stream,
+/// perform reads/writes on the data (based on what the request says to do).
+/// This function is only for requests sent from the client
 fn handle_crequest(mut stream: TcpStream, buffer: &[u8], node: &mut Node) {
 
 	println!("server: deserializing request");
@@ -138,6 +149,9 @@ fn handle_cresponse(buffer: &[u8]) {
 	eprintln!("CRequests should never be sent to Nodes, only Clients!");
 }
 
+/// Given a TcpStream and a buffer containing the recieved byte stream,
+/// perform reads/writes on the data (based on what the request says to do).
+/// This function is only for requests sent from other nodes
 fn handle_nrequest(mut stream: TcpStream, buffer: &[u8], node: &mut Node) {
 
 	// NOTE: Remember that an NRequest is a request from another node
@@ -243,6 +257,9 @@ fn handle_nresponse(stream: TcpStream, buffer: &[u8]) {
 	// these are just acks, so don't we just read them and do nothing?
 }
 
+/// General request handler for all requests. This function will classify a request
+/// and send the TcpStream, Node, and buffer to the proper handler (CRequest or 
+/// NRequest handler).
 fn handle_request(mut stream: TcpStream, node: &mut Node) {
 
 	const PLACEHOLDER: usize = 500; // TODO: Figure an upper bound for sizes of
@@ -275,6 +292,9 @@ fn handle_request(mut stream: TcpStream, node: &mut Node) {
 
 }
 
+/// Helper function for gather_nodes(...), reads a line from the file and 
+/// parses it into a Location struct instance (to be the value in a HashMap
+/// of type String -> location::Location)
 fn replica_pair(line: &str) -> (String, location::Location) {
 
 	let line_string = line.to_string();
@@ -290,6 +310,7 @@ fn replica_pair(line: &str) -> (String, location::Location) {
 
 }
 
+/// Create a HashMap of String -> location::Location from a given file
 fn gather_nodes(filename: &str) -> HashMap<String, location::Location> {
 
 	let file = File::open(filename).unwrap();
@@ -316,8 +337,10 @@ fn main() {
 
 	// NOTE: Maybe send follower/leader status as a cmd line param?
 
+	/// Collect command line parameters
 	let args: Vec<String> = env::args().collect();
 
+	/// Ensure binary is being called correctly
 	if (args.len() != 3) {
 		eprintln!("Please try again with following command:");
 		eprintln!("\t./{} <node-name> <node-record-file>", args[0]);
@@ -336,11 +359,13 @@ fn main() {
 	node.rank = Rank::Leader;
 	let node_rank = node.rank;
 
+	/// Start listening for requests
 	let listener = TcpListener::bind(node.replicas[&node_name].get_connection_tuple()).unwrap();
 	for stream in listener.incoming() {
 		match stream {
 
 			Ok(stream) => {
+				/// Handle the recieved request
 				println!("server: about to handle a request!");
 				handle_request(stream, &mut node);
 			}

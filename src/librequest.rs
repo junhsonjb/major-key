@@ -5,12 +5,21 @@ pub mod request {
 	include!(concat!(env!("OUT_DIR"), "/major_key.request.rs"));
 }
 
+/**
+	The different types of CRequests that can be made. CRequests are 
+	strictly sent from the client to the a node (specifically, the 
+	client can only talk to the primary node).
+*/
 pub enum CRequestType {
 	PUT,
 	GET,
 	RR, // used to denote that a message needs to be Re-Routed
 }
 
+/**
+	The different types of NRequests that can be made. NRequests are 
+	strictly sent between nodes.
+*/
 pub enum NRequestType {
 	PUT,
 	GET,
@@ -18,6 +27,10 @@ pub enum NRequestType {
 	RR, // used to denote that a message needs to be Re-Routed
 }
 
+/**
+	The general types of requests that can be made (for times when we need
+	to differentiate between Node messages and C messages.
+*/
 pub enum RequestType {
 	CREQUEST,
 	CRESPONSE,
@@ -25,6 +38,11 @@ pub enum RequestType {
 	NRESPONSE,
 }
 
+/**
+	Using the Prost Crate and the defined protobuf file, create a CRequest
+	struct, configured using the given params. The created message will be
+	wrapped in a request.
+*/
 pub fn make_crequest(category: CRequestType, key: String, value: Vec<u8>) -> Option<request::CRequest> {
 	let mut req = request::CRequest::default();
 	match category {
@@ -38,6 +56,11 @@ pub fn make_crequest(category: CRequestType, key: String, value: Vec<u8>) -> Opt
 	Some(req)
 }
 
+/**
+	Using the Prost Crate and the defined protobuf file, create a CResponse
+	struct, configured using the given params. The created message will be
+	wrapped in a request.
+*/
 pub fn make_cresponse(category: CRequestType, key: String, value: Vec<u8>, status: bool) -> Option<request::CResponse> {
 	let mut res = request::CResponse::default();
 	match category {
@@ -52,6 +75,11 @@ pub fn make_cresponse(category: CRequestType, key: String, value: Vec<u8>, statu
 	Some(res)
 }
 
+/**
+	Using the Prost Crate and the defined protobuf file, create a NRequest
+	struct, configured using the given params. The created message will be
+	wrapped in a request.
+*/
 pub fn make_nrequest(category: NRequestType, key: String, value: Vec<u8>, from: String) -> Option<request::NRequest> {
 	let mut req = request::NRequest::default();
 	match category {
@@ -67,6 +95,11 @@ pub fn make_nrequest(category: NRequestType, key: String, value: Vec<u8>, from: 
 	Some(req)
 }
 
+/**
+	Using the Prost Crate and the defined protobuf file, create a NResponse
+	struct, configured using the given params. The created message will be
+	wrapped in a request.
+*/
 pub fn make_nresponse(category: NRequestType, key: String, value: Vec<u8>, from: String, status: bool) -> Option<request::NResponse> {
 	let mut res = request::NResponse::default();
 	match category {
@@ -83,6 +116,11 @@ pub fn make_nresponse(category: NRequestType, key: String, value: Vec<u8>, from:
 	Some(res)
 }
 
+/**
+	Using Prost, serialize the given CRequest. Return a vector of bytes.
+	In order to differentiate between message types while they are in 
+	the form of a byte stream, append CR to denote that this is a CRequest.
+*/
 pub fn serialize_crequest(req: &request::CRequest) -> Vec<u8> {
 	let mut buffer = Vec::new();
 	let mut bytes = Vec::new();
@@ -94,6 +132,12 @@ pub fn serialize_crequest(req: &request::CRequest) -> Vec<u8> {
 	bytes
 }
 
+/**
+	Using Prost, serialize the given CRequest. Return a vector of bytes.
+	In order to differentiate between message types while they are in 
+	the form of a byte stream, append CA to denote that this is a CResponse
+	('A' is for ACK, since Response also starts with an 'R').
+*/
 pub fn serialize_cresponse(res: &request::CResponse) -> Vec<u8> {
 	let mut buffer = Vec::new();
 	let mut bytes = Vec::new();
@@ -106,6 +150,11 @@ pub fn serialize_cresponse(res: &request::CResponse) -> Vec<u8> {
 }
 
 
+/**
+	Using Prost, serialize the given CRequest. Return a vector of bytes.
+	In order to differentiate between message types while they are in 
+	the form of a byte stream, append NR to denote that this is a NRequest.
+*/
 pub fn serialize_nrequest(req: &request::NRequest) -> Vec<u8> {
 	let mut buffer = Vec::new();
 	let mut bytes = Vec::new();
@@ -117,6 +166,12 @@ pub fn serialize_nrequest(req: &request::NRequest) -> Vec<u8> {
 	bytes
 }
 
+/**
+	Using Prost, serialize the given CRequest. Return a vector of bytes.
+	In order to differentiate between message types while they are in 
+	the form of a byte stream, append CR to denote that this is a NResponse
+	('A' is for ACK, since Response also starts with an 'R').
+*/
 pub fn serialize_nresponse(res: &request::NResponse) -> Vec<u8> {
 	let mut buffer = Vec::new();
 	let mut bytes = Vec::new();
@@ -128,22 +183,39 @@ pub fn serialize_nresponse(res: &request::NResponse) -> Vec<u8> {
 	bytes
 }
 
+/**
+	Using Prost, deserialize a given byte stream into a CRequest.
+*/
 pub fn deserialize_crequest(buffer: &[u8]) -> Result<request::CRequest, prost::DecodeError> {
 	request::CRequest::decode(&mut Cursor::new(buffer[2..].to_vec()))
 }
 
+/**
+	Using Prost, deserialize a given byte stream into a CResponse.
+*/
 pub fn deserialize_cresponse(buffer: &[u8]) -> Result<request::CResponse, prost::DecodeError> {
 	request::CResponse::decode(&mut Cursor::new(buffer[2..].to_vec()))
 }
 
+/**
+	Using Prost, deserialize a given byte stream into a NRequest.
+*/
 pub fn deserialize_nrequest(buffer: &[u8]) -> Result<request::NRequest, prost::DecodeError> {
 	request::NRequest::decode(&mut Cursor::new(buffer[2..].to_vec()))
 }
 
+/**
+	Using Prost, deserialize a given byte stream into a NResponse.
+*/
 pub fn deserialize_nresponse(buffer: &[u8]) -> Result<request::NResponse, prost::DecodeError> {
 	request::NResponse::decode(&mut Cursor::new(buffer[2..].to_vec()))
 }
 
+/** 
+	Using the RequestType enum, indicate the type of request that is being
+	represented by the given byte slice. We can differentiate message types
+	using the characters appended to the byte vector during serialization.
+*/
 pub fn classify(buffer: &[u8]) -> Option<RequestType> {
 	match &buffer[0..2] {
 		b"CR" => Some(RequestType::CREQUEST),
@@ -154,6 +226,12 @@ pub fn classify(buffer: &[u8]) -> Option<RequestType> {
 	}
 }
 
+/**
+	Using the CRequestType enum, indicate the type of CRequest that is being
+	represented by the given byte slice. We can differentiate using the 
+	category field of the CRequest struct (which uses a similar internal enum to
+	indicate its type).
+*/
 pub fn which_crequest(buffer: &[u8]) -> Option<CRequestType> {
 	let message = deserialize_crequest(buffer).unwrap();
 	match message.category {
@@ -163,6 +241,12 @@ pub fn which_crequest(buffer: &[u8]) -> Option<CRequestType> {
 	}
 }
 
+/**
+	Using the NRequestType enum, indicate the type of NRequest that is being
+	represented by the given byte slice. We can differentiate using the 
+	category field of the NRequest struct (which uses a similar internal enum to
+	indicate its type).
+*/
 pub fn which_nrequest(buffer: &[u8]) -> Option<NRequestType> {
 	let message = deserialize_nrequest(buffer).unwrap();
 	match message.category {

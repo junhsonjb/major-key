@@ -23,6 +23,11 @@ pub mod request {
 }
 */
 
+/**
+	The Rank enum denotes whether a node is Leader, Followr, or Candidate
+	(to become a Leader). This can be used for any consensu protocol that
+	is being implemented into the KV data store.
+*/
 #[derive(Copy, Clone)]
 pub enum Rank {
     Leader,
@@ -30,6 +35,17 @@ pub enum Rank {
     Candidate,
 }
 
+/**
+	A Node instance will represent a node in the key-value store.
+	A KV store can be made up of one of more nodes, with each one 
+	containing some subset of the data in the KV store.
+
+	Each Node has a name, a map of replicas (name -> Location),
+	rank (for consensus purposes), data HashMap (contains actual
+	node KV data), and an log of operations performed (op_log).
+	There is also a bool, is_replicated, to indicate whether or not
+	a node is currently being replicated.
+*/
 pub struct Node {
     pub name: String,                                
     pub replicas: HashMap<String, location::Location>,

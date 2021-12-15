@@ -12,6 +12,11 @@ use std::env;
 use bson::{doc, Bson, Document};
 use std::thread;
 
+/// A simple client to test/demonstrate server (and key-value store overall)
+
+/// Helper function for gather_nodes(...), reads a line from the file and 
+/// parses it into a Location struct instance (to be the value in a HashMap
+/// of type String -> location::Location)
 // Coped from bin/server.rs -- TODO: find a way to efficiently reuse this code
 fn replica_pair(line: &str) -> (String, location::Location) {
 
@@ -28,6 +33,7 @@ fn replica_pair(line: &str) -> (String, location::Location) {
 
 }
 
+/// Create a HashMap of String -> location::Location from a given file
 // Coped from bin/server.rs -- TODO: find a way to efficiently reuse this code
 fn gather_nodes(filename: &str) -> HashMap<String, location::Location> {
 
@@ -47,9 +53,11 @@ fn gather_nodes(filename: &str) -> HashMap<String, location::Location> {
 
 fn main() {
 
+	/// Collect command line parameters
 	// collect cmd line params
 	let args: Vec<String> = env::args().collect();
 
+	/// Ensure that the binary was called correctly
 	if (args.len() != 2) {
 		eprintln!("Please try again with the following command structure: ");
 		eprintln!("\t./client <node-record-file>");
@@ -67,6 +75,7 @@ fn main() {
 			println!("client: Successfully connected to primary!");
 
 			println!("client: Doing setup for sending request: hello world");
+			/// Create the request that we'll send over the network
 			// create request to send over network
 			let cat = librequest::CRequestType::PUT;
 			let stringdata = String::from("hello world");
@@ -76,11 +85,13 @@ fn main() {
 			let mut byte_stream: Vec<u8> = Vec::new();
 			doc.to_writer(&mut byte_stream).unwrap();
 
+			/// Put request data into request object and serialize it
 			let request_obj = librequest::make_crequest(cat, "test".to_string(), byte_stream).unwrap();
 			let request = librequest::serialize_crequest(&request_obj);
 
 			println!("client: MSG LEN - {} bytes", request.len());
 
+			/// Send request byte stream over network
 			// send over stream
 			println!("client: sending request");
 			stream.write(&request).expect("issue with writing to stream");
@@ -103,11 +114,13 @@ fn main() {
 					// println!("client: {:?}", pbuffer);
 					println!("client: RESPONSE LEN - {}", buffer.len());
 					println!("client: RESPONSE - {:?}", buffer);
+					/// Deserialize response (sent from server to indicate results and status of request)
 					let response = librequest::deserialize_cresponse(&buffer).unwrap();
 					let key = response.key;
 					let bytes = response.value;
 					let sts = response.status;
 
+					/// Turn response into document (to convert from bytes to BSON)
 					let doc = Document::from_reader(&mut bytes.as_slice()).expect("in client, creating document");
 					let bson_obj = doc.get("x").unwrap();
 
