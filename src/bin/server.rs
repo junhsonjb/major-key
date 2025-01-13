@@ -28,7 +28,6 @@ fn send_cresponse(mut stream: TcpStream, response: Option<librequest::request::C
 	let resp = response.unwrap();
 	let s_response = librequest::serialize_cresponse(&resp);
 	stream.write(&s_response).expect("issue with writing in send_cresponse");
-	println!("server: make it happen, cap'n");
 }
 
 /// Use the provided TcpStream to send a response back to the requesting node
@@ -45,7 +44,6 @@ fn handle_crequest(mut stream: TcpStream, buffer: &[u8], node: &mut Node) {
 
 	println!("server: deserializing request");
 	let message = librequest::deserialize_crequest(buffer).unwrap();
-	println!("server: not here right?");
 
 	match node.rank {
 
@@ -74,11 +72,6 @@ fn handle_crequest(mut stream: TcpStream, buffer: &[u8], node: &mut Node) {
 
 					// need access to node object
 					node.put(&key, value);
-
-					// TODO: make and return request
-					println!("server: RESPONSE LEN - {} bytes", bytes.len());
-					println!("server: RESPONSE - {:?}", bytes);
-					println!("server: is this getting printed???");
 
 					println!("server: making response");
 					let response = librequest::make_cresponse(librequest::CRequestType::PUT, key, bytes, true);
@@ -146,7 +139,7 @@ fn handle_cresponse(buffer: &[u8]) {
 	// TODO: figure out what you need to do here
 	// NOTE: probably nothing, since cresponse is never recieved by nodes. This
 	// function is kinda just a placeholder for the match statement that calls it.
-	eprintln!("CRequests should never be sent to Nodes, only Clients!");
+	eprintln!("CResponses should never be sent to Nodes, only Clients!");
 }
 
 /// Given a TcpStream and a buffer containing the recieved byte stream,
@@ -270,11 +263,8 @@ fn handle_request(mut stream: TcpStream, node: &mut Node) {
 									// long run. So be sure to figure that out
 									// when you're able to!
 	let mut pbuffer = [0 as u8; PLACEHOLDER]; // pbuffer is placeholder buffer
-	println!("server: did we make it here?");
 	let bytes_read = stream.read(&mut pbuffer).expect("issue with reading stream"); // used to be read_exact(...)
 	let buffer = &pbuffer[0..bytes_read];
-	println!("server: did the beat drop?");
-	println!("server: MSG LEN - {} bytes", buffer.len());
 	let request_type = librequest::classify(&buffer).unwrap();
 
 	// NOTE: remember that if the return type is a message with type
@@ -287,8 +277,6 @@ fn handle_request(mut stream: TcpStream, node: &mut Node) {
 		librequest::RequestType::NREQUEST => handle_nrequest(stream, &buffer.to_vec(), node),
 		librequest::RequestType::NRESPONSE => handle_nresponse(stream, &buffer.to_vec()),
 	};
-
-	println!("server: is we here?");
 
 }
 
@@ -345,6 +333,9 @@ fn main() {
 		eprintln!("Please try again with following command:");
 		eprintln!("\t./{} <node-name> <node-record-file>", args[0]);
 	}
+
+	// TODO: each line in node map should *also* denote leader/follower
+	// Then, we need to define leader/follower based on this
 
 	let node_name = args[1].to_owned();
 	let record_name = args[2].to_owned();
