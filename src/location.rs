@@ -3,6 +3,7 @@
     It contains the IP and port of a node, which are used to create
     network (likely TCP) connection.
 */
+#[derive(Debug)]
 pub struct Location {
 	name: String,
     ip: String,

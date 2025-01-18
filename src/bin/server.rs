@@ -12,6 +12,7 @@ use std::net::{TcpListener, TcpStream, Shutdown};
 use std::env;
 use bson::{Bson, Document};
 use std::thread;
+// use clap::Parser; // TODO: consider for arg parsing
 
 /// Server for the Key-Value store!
 /// Uses the Node struct to hold data and handles messages
@@ -325,30 +326,28 @@ fn main() {
 
 	// NOTE: Maybe send follower/leader status as a cmd line param?
 
-	/// Collect command line parameters
 	let args: Vec<String> = env::args().collect();
-
-	/// Ensure binary is being called correctly
-	if (args.len() != 3) {
-		eprintln!("Please try again with following command:");
-		eprintln!("\t./{} <node-name> <node-record-file>", args[0]);
-	}
-
-	// TODO: each line in node map should *also* denote leader/follower
-	// Then, we need to define leader/follower based on this
 
 	let node_name = args[1].to_owned();
 	let record_name = args[2].to_owned();
 
 	let node_map = gather_nodes(&record_name);
-	let home_location = &node_map[&node_name];
+	let port = &node_map[&node_name];
+
+    // TODO: define leader via command line or node record instead of hardcoding
+    let is_leader = node_name == "replica1";
+
+    // TODO: Now that a node knows it's role (leader/follower), leaders should replicate to
+    // followers
 
 	let mut node = Node::new(&node_name, node_map);
 	// the below line needs to change, use a NodeWrapper constructor
 	// let ref mut  nodeptr = node; // using `ref` makes this same as nodewrapper = &node
 	// let mut nodewrap = nodewrapper::NodeWrapper::new(nodeptr);
-	node.rank = Rank::Leader;
-	let node_rank = node.rank;
+	node.rank = match is_leader {
+	    true    => Rank::Leader,
+	    false   => Rank::Follower,
+    };
 
 	/// Start listening for requests
 	let listener = TcpListener::bind(node.replicas[&node_name].get_connection_tuple()).unwrap();
