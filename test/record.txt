@@ -1,2 +1,0 @@
-replica1 localhost 8001
-replica2 localhost 8002
